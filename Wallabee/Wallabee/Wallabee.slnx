@@ -1,3 +1,7 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Wallabee.Application/Wallabee.Application.csproj" />
+    <Project Path="src/Wallabee.Core/Wallabee.Core.csproj" />
+  </Folder>
   <Project Path="Wallabee.csproj" />
 </Solution>

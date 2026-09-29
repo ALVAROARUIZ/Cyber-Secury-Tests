@@ -7,10 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Wallabee.Core\Wallabee.Core.csproj" />
     <ProjectReference Include="..\Wallabee.Application\Wallabee.Application.csproj" />
     <ProjectReference Include="..\Wallabee.Infrastructure\Wallabee.Infrastructure.csproj" />
     <ProjectReference Include="..\Wallabee.Benchmark\Wallabee.Benchmark.csproj" />
