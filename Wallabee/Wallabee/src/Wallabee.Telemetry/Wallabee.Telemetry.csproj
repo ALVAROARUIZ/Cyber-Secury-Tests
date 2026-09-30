@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="../Wallabee.Core/Wallabee.Core.csproj"/><ProjectReference Include="../Wallabee.Contracts/Wallabee.Contracts.csproj"/><FrameworkReference Include="Microsoft.AspNetCore.App"/></ItemGroup></Project>

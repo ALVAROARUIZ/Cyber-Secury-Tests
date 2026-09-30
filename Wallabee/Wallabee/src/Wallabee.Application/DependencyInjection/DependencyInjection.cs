@@ -8,7 +8,10 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddWallabeeApplication(this IServiceCollection services)
     {
+        services.AddSingleton<Wallabee.Application.Monitoring.ActivityMonitor>();
         services.AddScoped<DetectionPipeline>();
+        services.AddScoped<ScanQueryService>();
+        services.AddScoped<Wallabee.Application.Telemetry.TelemetryService>();
         services.AddScoped<ScanFileService>();
         services.AddScoped<ScanDirectoryService>();
         services.AddScoped<QuarantineApplicationService>();

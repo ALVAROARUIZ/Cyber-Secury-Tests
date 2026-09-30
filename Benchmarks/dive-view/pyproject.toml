@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dive-view"
+version = "0.2.0"
+description = "Web observability and benchmarking application for DiveViewLab."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.32,<1",
+    "SQLAlchemy>=2.0",
+    "pyodbc>=5.2",
+    "pandas>=2.2",
+    "numpy>=2.1",
+    "scipy>=1.14",
+    "statsmodels>=0.14",
+    "pydantic-settings>=2.6",
+]
+
+[project.optional-dependencies]
+desktop = ["PySide6>=6.8", "matplotlib>=3.9"]
+dev = ["httpx>=0.28,<1","pytest>=8.3", "ruff>=0.8", "mypy>=1.13", "pandas-stubs>=2.2"]
+
+[project.scripts]
+dive-view = "dive_view.app.main:main"
+dive-view-desktop = "dive_view.app.desktop:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["dive_view"]
+ignore_missing_imports = true
+[tool.setuptools.package-data]
+"dive_view.web" = ["static/*"]

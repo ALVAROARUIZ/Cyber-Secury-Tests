@@ -1,7 +1,21 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Wallabee.API/Wallabee.API.csproj" />
     <Project Path="src/Wallabee.Application/Wallabee.Application.csproj" />
+    <Project Path="src/Wallabee.Benchmark/Wallabee.Benchmark.csproj" />
+    <Project Path="src/Wallabee.Contracts/Wallabee.Contracts.csproj" />
     <Project Path="src/Wallabee.Core/Wallabee.Core.csproj" />
+    <Project Path="src/Wallabee.Infrastructure/Wallabee.Infrastructure.csproj" />
+    <Project Path="src/Wallabee.Launcher/Wallabee.Launcher.csproj" />
+    <Project Path="src/Wallabee.Telemetry/Wallabee.Telemetry.csproj" />
   </Folder>
-  <Project Path="Wallabee.csproj" />
+  <Folder Name="/tests/">
+    <Project Path="tests/Wallabee.API.Tests/Wallabee.API.Tests.csproj" />
+    <Project Path="tests/Wallabee.Application.Tests/Wallabee.Application.Tests.csproj" />
+    <Project Path="tests/Wallabee.Benchmark.Tests/Wallabee.Benchmark.Tests.csproj" />
+    <Project Path="tests/Wallabee.Core.Tests/Wallabee.Core.Tests.csproj" />
+    <Project Path="tests/Wallabee.Infrastructure.Tests/Wallabee.Infrastructure.Tests.csproj" />
+    <Project Path="tests/Wallabee.Launcher.Tests/Wallabee.Launcher.Tests.csproj" />
+    <Project Path="tests/Wallabee.Telemetry.Tests/Wallabee.Telemetry.Tests.csproj" />
+  </Folder>
 </Solution>

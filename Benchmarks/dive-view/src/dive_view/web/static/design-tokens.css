@@ -1,0 +1,36 @@
+/* Portable design tokens derived from WALLABEE Live Lab.
+   Import in DIVE VIEW's web application; no runtime changes to WALLABEE. */
+:root {
+  color-scheme: dark;
+  --dv-bg: #0c1013;
+  --dv-surface: #111619;
+  --dv-surface-raised: #151c20;
+  --dv-border: #252d31;
+  --dv-text: #e9efed;
+  --dv-muted: #839097;
+  --dv-accent: #b8f476;
+  --dv-on-accent: #162310;
+  --dv-success: #88d9af;
+  --dv-info: #8cafee;
+  --dv-warning: #dec477;
+  --dv-high: #e6a273;
+  --dv-critical: #ed7f83;
+  --dv-font-sans: Inter, "Segoe UI", sans-serif;
+  --dv-font-mono: Consolas, "SFMono-Regular", monospace;
+  --dv-space-1: 4px;
+  --dv-space-2: 8px;
+  --dv-space-3: 12px;
+  --dv-space-4: 16px;
+  --dv-space-6: 24px;
+  --dv-space-8: 32px;
+  --dv-space-12: 48px;
+  --dv-radius-control: 4px;
+  --dv-radius-panel: 8px;
+  --dv-sidebar-width: 224px;
+  --dv-topbar-height: 64px;
+  --dv-motion-fast: 150ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dv-motion-fast: 0ms; }
+}

@@ -22,4 +22,4 @@
     <ProjectReference Include="..\..\src\Wallabee.API\Wallabee.API.csproj" />
   </ItemGroup>
 
-</Project>
+<ItemGroup><PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" /></ItemGroup><ItemGroup><Compile Include="../Shared/SqlServerTestDatabase.cs" Link="SqlServerTestDatabase.cs" /></ItemGroup></Project>

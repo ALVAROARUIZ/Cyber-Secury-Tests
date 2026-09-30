@@ -1,58 +1,76 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using Wallabee.Core.Configuration;
 using Wallabee.Core.Interfaces;
 using Wallabee.Core.Models;
 using Wallabee.Infrastructure.FileSystem;
-
 namespace Wallabee.Infrastructure.Quarantine;
-
-public sealed class LocalQuarantineService(
-    LabPathValidator labPathValidator,
-    IHashCalculator hashCalculator,
-    IOptions<QuarantineOptions> options) : IQuarantineService
+public sealed class LocalQuarantineService(LabPathValidator paths, IHashCalculator hashes, IOptions<QuarantineOptions> options,
+    IQuarantineRepository repository, ILogger<LocalQuarantineService> logger) : IQuarantineService
 {
-    private readonly ConcurrentDictionary<Guid, QuarantineEntry> _entries = new();
-
+    private readonly LabPathValidator quarantinePaths = new(options.Value.Directory);
+    private readonly SemaphoreSlim gate = new(1,1);
     public async Task<QuarantineEntry> QuarantineAsync(string filePath, CancellationToken cancellationToken = default)
     {
-        var originalPath = labPathValidator.EnsureInsideLabDirectory(filePath);
-        var quarantineDirectory = labPathValidator.EnsureInsideLabDirectory(options.Value.Directory);
-        Directory.CreateDirectory(quarantineDirectory);
-        await using var source = File.OpenRead(originalPath);
-        var hash = await hashCalculator.CalculateAsync(source, cancellationToken).ConfigureAwait(false);
-        var entry = new QuarantineEntry(Guid.NewGuid(), originalPath, Path.Combine(quarantineDirectory, $"{Guid.NewGuid():N}.quarantine"), DateTimeOffset.UtcNow, hash.Value);
-        File.Move(originalPath, entry.QuarantinedPath);
-        _entries[entry.Id] = entry;
-        return entry;
-    }
-
-    public Task RestoreAsync(Guid entryId, CancellationToken cancellationToken = default)
-    {
-        if (!options.Value.AllowRestore)
+        await gate.WaitAsync(cancellationToken);
+        try
         {
-            throw new InvalidOperationException("Quarantine restore is disabled.");
+            var original = paths.EnsureInsideLabDirectory(filePath);
+            var directory = quarantinePaths.EnsureInsideLabDirectory(options.Value.Directory);
+            Directory.CreateDirectory(directory);
+            HashResult hash;
+            await using (var source = File.OpenRead(original)) hash = await hashes.CalculateAsync(source, cancellationToken);
+            var entry = new QuarantineEntry(Guid.NewGuid(), original, Path.Combine(directory, $"{Guid.NewGuid():N}.quarantine"), DateTimeOffset.UtcNow, hash.Value);
+            // Persist intent first so a crash between DB and filesystem operations is recoverable.
+            await repository.SaveAsync(entry, cancellationToken);
+            File.Move(original, entry.QuarantinedPath);
+            entry = entry with { State = "Quarantined" };
+            await repository.SaveAsync(entry, CancellationToken.None);
+            logger.LogInformation("FileQuarantined {QuarantineId}", entry.Id);
+            return entry;
         }
-
-        var entry = GetEntry(entryId);
-        labPathValidator.EnsureInsideLabDirectory(entry.OriginalPath);
-        File.Move(entry.QuarantinedPath, entry.OriginalPath);
-        _entries.TryRemove(entryId, out _);
-        return Task.CompletedTask;
+        finally { gate.Release(); }
     }
-
-    public Task DeleteAsync(Guid entryId, CancellationToken cancellationToken = default)
+    public async Task RestoreAsync(Guid entryId, CancellationToken cancellationToken = default)
     {
-        var entry = GetEntry(entryId);
-        labPathValidator.EnsureInsideLabDirectory(entry.QuarantinedPath);
-        File.Delete(entry.QuarantinedPath);
-        _entries.TryRemove(entryId, out _);
-        return Task.CompletedTask;
+        if (!options.Value.AllowRestore) throw new InvalidOperationException("Quarantine restore is disabled.");
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            var entry = await GetAsync(entryId, cancellationToken);
+            paths.EnsureInsideLabDirectory(entry.OriginalPath); quarantinePaths.EnsureInsideLabDirectory(entry.QuarantinedPath);
+            if (entry.State == "Restored") return;
+            if (entry.State == "Deleted") throw new InvalidOperationException("Entry was deleted.");
+            if (File.Exists(entry.QuarantinedPath))
+            {
+                await using (var source = File.OpenRead(entry.QuarantinedPath))
+                    if ((await hashes.CalculateAsync(source, cancellationToken)).Value != entry.Sha256) throw new InvalidOperationException("Quarantine hash mismatch.");
+                await repository.SaveAsync(entry with { State = "Restoring" }, cancellationToken);
+                File.Move(entry.QuarantinedPath, entry.OriginalPath, false);
+            }
+            else
+            {
+                if (entry.State != "Restoring" || !File.Exists(entry.OriginalPath)) throw new InvalidOperationException("Quarantine file is missing.");
+                await using var source = File.OpenRead(entry.OriginalPath);
+                if ((await hashes.CalculateAsync(source, cancellationToken)).Value != entry.Sha256) throw new InvalidOperationException("Restored file hash mismatch.");
+            }
+            await repository.SaveAsync(entry with { State = "Restored", RestoredAt = DateTimeOffset.UtcNow }, CancellationToken.None);
+            logger.LogInformation("FileRestored {QuarantineId}", entry.Id);
+        }
+        finally { gate.Release(); }
     }
-
-    public Task<IReadOnlyCollection<QuarantineEntry>> ListAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyCollection<QuarantineEntry>>(_entries.Values.OrderBy(entry => entry.QuarantinedAt).ToArray());
-
-    private QuarantineEntry GetEntry(Guid entryId) =>
-        _entries.TryGetValue(entryId, out var entry) ? entry : throw new KeyNotFoundException("The quarantine entry was not found.");
+    public async Task DeleteAsync(Guid entryId, CancellationToken cancellationToken = default)
+    {
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            var entry = await GetAsync(entryId, cancellationToken);
+            quarantinePaths.EnsureInsideLabDirectory(entry.QuarantinedPath);
+            File.Delete(entry.QuarantinedPath);
+            await repository.SaveAsync(entry with { State = "Deleted" }, CancellationToken.None);
+        }
+        finally { gate.Release(); }
+    }
+    public async Task<IReadOnlyCollection<QuarantineEntry>> ListAsync(CancellationToken cancellationToken = default) => (await repository.ListAsync(cancellationToken)).ToArray();
+    private async Task<QuarantineEntry> GetAsync(Guid id, CancellationToken ct) => (await repository.ListAsync(ct)).FirstOrDefault(e => e.Id == id) ?? throw new KeyNotFoundException("Quarantine entry not found.");
 }

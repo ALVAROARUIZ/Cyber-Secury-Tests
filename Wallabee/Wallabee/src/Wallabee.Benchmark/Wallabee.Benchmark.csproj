@@ -14,4 +14,5 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-</Project>
+<ItemGroup><ProjectReference Include="../Wallabee.Contracts/Wallabee.Contracts.csproj" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../Wallabee.Application/Wallabee.Application.csproj" /></ItemGroup></Project>

@@ -18,7 +18,12 @@ public sealed class LabPathValidator
         }
 
         var fullPath = Path.GetFullPath(path);
-        return fullPath.StartsWith(_labRoot, StringComparison.OrdinalIgnoreCase);
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (!fullPath.StartsWith(_labRoot, comparison) && !string.Equals(fullPath.TrimEnd(Path.DirectorySeparatorChar), _labRoot.TrimEnd(Path.DirectorySeparatorChar), comparison)) return false;
+        // Reject symlink/junction traversal, including existing parents of restore destinations.
+        for (var current = fullPath; !string.IsNullOrEmpty(current); current = Path.GetDirectoryName(current))
+            if ((File.Exists(current) || Directory.Exists(current)) && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) return false;
+        return true;
     }
 
     public string EnsureInsideLabDirectory(string path)

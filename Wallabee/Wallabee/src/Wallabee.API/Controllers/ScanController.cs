@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using Wallabee.API.Contracts.Requests;
+using Wallabee.Contracts.Requests;
+using Wallabee.Application.Mapping;
 using Wallabee.Application.Scanning.Services;
 
 namespace Wallabee.API.Controllers;
@@ -9,11 +10,11 @@ namespace Wallabee.API.Controllers;
 public sealed class ScanController(ScanFileService scanFileService, ScanDirectoryService scanDirectoryService) : ControllerBase
 {
     [HttpPost("file")]
-    public async Task<IActionResult> ScanFile(FileScanRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> ScanFile(ScanFileRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            return Ok(await scanFileService.ExecuteAsync(request.FilePath, cancellationToken).ConfigureAwait(false));
+            return Ok((await scanFileService.ExecuteAsync(request.FilePath, request.ToContext(), cancellationToken).ConfigureAwait(false)).ToResponse());
         }
         catch (Exception exception) when (exception is UnauthorizedAccessException or FileNotFoundException or InvalidOperationException)
         {
@@ -26,7 +27,7 @@ public sealed class ScanController(ScanFileService scanFileService, ScanDirector
     {
         try
         {
-            return Ok(await scanDirectoryService.ExecuteAsync(request.DirectoryPath, cancellationToken).ConfigureAwait(false));
+            return Ok((await scanDirectoryService.ExecuteAsync(request.DirectoryPath, request.ToContext(), cancellationToken).ConfigureAwait(false)).Select(r => r.ToResponse()));
         }
         catch (Exception exception) when (exception is UnauthorizedAccessException or DirectoryNotFoundException)
         {

@@ -18,6 +18,7 @@ public sealed class LocalFileSystemScanner(
     public async Task<FileScanResult> ScanFileAsync(string filePath, CancellationToken cancellationToken = default)
     {
         var startedAt = DateTimeOffset.UtcNow;
+        var timer = System.Diagnostics.Stopwatch.StartNew();
         var fullPath = labPathValidator.EnsureInsideLabDirectory(filePath);
         var fileInfo = new FileInfo(fullPath);
         if (!fileInfo.Exists)
@@ -30,36 +31,25 @@ public sealed class LocalFileSystemScanner(
             throw new InvalidOperationException("The file exceeds the configured maximum size.");
         }
 
-        logger.LogInformation("ScanStarted {FilePath} {FileSize}", fullPath, fileInfo.Length);
+        logger.LogInformation("ScanStarted {FileName} {FileSize}", fileInfo.Name, fileInfo.Length);
         await using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read, options.Value.ScanBufferSize, FileOptions.Asynchronous);
         var hash = await hashCalculator.CalculateAsync(stream, cancellationToken).ConfigureAwait(false);
-        var context = new FileContext(new FileMetadata(fullPath, fileInfo.Name, fileInfo.Length, fileInfo.LastWriteTimeUtc), hash);
+        var analysis = await StaticFileAnalyzer.AnalyzeAsync(stream, cancellationToken);
+        var context = new FileContext(new FileMetadata(fullPath, fileInfo.Name, fileInfo.Length, fileInfo.LastWriteTimeUtc), hash, analysis);
         var assessment = await detectionPipeline.AnalyzeAsync(context, cancellationToken).ConfigureAwait(false);
-        var result = new FileScanResult(fullPath, fileInfo.Length, hash.Value, assessment.Score, assessment.Level, assessment.Indicators, DateTimeOffset.UtcNow - startedAt);
-        logger.LogInformation("ScanCompleted {FilePath} {DetectionLevel} {RiskScore}", fullPath, result.DetectionLevel, result.RiskScore);
+        var result = new FileScanResult(fullPath, fileInfo.Length, hash.Value, assessment.Score, assessment.Level, assessment.Indicators, timer.Elapsed) { StartedAt = startedAt, CompletedAt = DateTimeOffset.UtcNow, WallabeeVersion = Wallabee.Core.Common.WallabeeVersion.Current };
+        logger.LogInformation("ScanCompleted {FileName} {DetectionLevel} {RiskScore}", fileInfo.Name, result.DetectionLevel, result.RiskScore);
+        if (result.DetectionLevel >= DetectionLevel.Medium) logger.LogWarning("ThreatDetected {ScanId} {DetectionLevel}", result.ScanId, result.DetectionLevel);
         return result;
     }
 
     public async Task<IReadOnlyCollection<FileScanResult>> ScanDirectoryAsync(string directoryPath, CancellationToken cancellationToken = default)
     {
         var fullPath = labPathValidator.EnsureInsideLabDirectory(directoryPath);
-        var files = Directory.EnumerateFiles(fullPath, "*", SearchOption.AllDirectories);
-        var results = new List<FileScanResult>();
-        using var semaphore = new SemaphoreSlim(Math.Max(1, options.Value.MaximumParallelScans));
-        var tasks = files.Select(async file =>
-        {
-            await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                return await ScanFileAsync(file, cancellationToken).ConfigureAwait(false);
-            }
-            finally
-            {
-                semaphore.Release();
-            }
-        });
-
-        results.AddRange(await Task.WhenAll(tasks).ConfigureAwait(false));
-        return results;
+        var files = Directory.EnumerateFiles(fullPath, "*", new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint, IgnoreInaccessible = false });
+        var results = new System.Collections.Concurrent.ConcurrentBag<FileScanResult>();
+        await Parallel.ForEachAsync(files, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, options.Value.MaximumParallelScans), CancellationToken = cancellationToken },
+            async (file, ct) => results.Add(await ScanFileAsync(file, ct)));
+        return results.ToArray();
     }
 }

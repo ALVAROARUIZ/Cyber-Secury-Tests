@@ -35,3 +35,7 @@ public interface IQuarantineService
     Task DeleteAsync(Guid entryId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<QuarantineEntry>> ListAsync(CancellationToken cancellationToken = default);
 }
+public interface IFileCatalog
+{
+    IEnumerable<string> EnumerateFiles(string directoryPath);
+}

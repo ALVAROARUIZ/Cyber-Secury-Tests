@@ -7,6 +7,10 @@ namespace Wallabee.API.Controllers;
 [Route("api/quarantine")]
 public sealed class QuarantineController(QuarantineApplicationService quarantineService) : ControllerBase
 {
+    [HttpPost]
+    public async Task<IActionResult> Quarantine(Wallabee.Contracts.Requests.ScanFileRequest request, CancellationToken cancellationToken) =>
+        Ok(await quarantineService.QuarantineAsync(request.FilePath, cancellationToken));
+
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken cancellationToken) => Ok(await quarantineService.ListAsync(cancellationToken).ConfigureAwait(false));
 

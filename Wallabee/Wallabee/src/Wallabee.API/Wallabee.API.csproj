@@ -17,4 +17,5 @@
     <ProjectReference Include="..\Wallabee.Benchmark\Wallabee.Benchmark.csproj" />
   </ItemGroup>
 
-</Project>
+<ItemGroup><ProjectReference Include="../Wallabee.Contracts/Wallabee.Contracts.csproj" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../Wallabee.Telemetry/Wallabee.Telemetry.csproj" /></ItemGroup><PropertyGroup><UserSecretsId>wallabee-diveview-development</UserSecretsId></PropertyGroup><ItemGroup><PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" /></ItemGroup></Project>

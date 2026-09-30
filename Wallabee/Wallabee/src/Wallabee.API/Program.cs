@@ -1,28 +1,27 @@
+using Wallabee.API.Configuration;
+using Wallabee.Telemetry.DependencyInjection;
 using Wallabee.Application.DependencyInjection;
 using Wallabee.Benchmark.DependencyInjection;
 using Wallabee.Infrastructure.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var labRoot = builder.Configuration["Wallabee:LabRoot"] ?? "../../lab";
-if (!Path.IsPathRooted(labRoot))
-{
-    builder.Configuration["Wallabee:LabRoot"] = Path.GetFullPath(labRoot, builder.Environment.ContentRootPath);
-}
+builder.ResolveLocalPaths();
 
-var quarantineDirectory = builder.Configuration["Quarantine:Directory"] ?? "../../lab/quarantine";
-if (!Path.IsPathRooted(quarantineDirectory))
-{
-    builder.Configuration["Quarantine:Directory"] = Path.GetFullPath(quarantineDirectory, builder.Environment.ContentRootPath);
-}
-
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
+builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
+builder.Services.AddSingleton<Wallabee.API.Monitoring.DashboardState>();
+builder.Services.AddHostedService(p => p.GetRequiredService<Wallabee.API.Monitoring.DashboardState>());
 builder.Services.AddWallabeeApplication();
 builder.Services.AddWallabeeInfrastructure(builder.Configuration);
-builder.Services.AddWallabeeBenchmark();
+builder.Services.AddWallabeeBenchmark(builder.Configuration);
+builder.Services.AddWallabeeTelemetry(builder.Configuration);
 
 var app = builder.Build();
+await app.InitializePersistenceAsync();
+app.UseExceptionHandler();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -35,6 +34,8 @@ if (builder.Configuration.GetValue("WallabeeRuntime:UseHttpsRedirection", true))
     app.UseHttpsRedirection();
 }
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseAuthorization();
 
 app.MapControllers();

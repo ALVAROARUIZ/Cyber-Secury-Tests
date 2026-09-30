@@ -11,12 +11,12 @@ public static class BenchmarkMetricCalculator
         return new DetectionMetrics(truePositives, trueNegatives, falsePositives, falseNegatives, precision, recall, Divide(2 * precision * recall, precision + recall), recall, Divide(falsePositives, falsePositives + trueNegatives), Divide(falseNegatives, falseNegatives + truePositives));
     }
 
-    public static PerformanceMetrics CalculatePerformanceMetrics(IEnumerable<TimeSpan> latencies, long totalBytes)
+    public static PerformanceMetrics CalculatePerformanceMetrics(IEnumerable<TimeSpan> latencies, long totalBytes, TimeSpan? wallTime = null)
     {
         var samples = latencies.Order().ToArray();
-        var total = TimeSpan.FromTicks(samples.Sum(value => value.Ticks));
+        var total = wallTime ?? TimeSpan.FromTicks(samples.Sum(value => value.Ticks));
         var seconds = Math.Max(total.TotalSeconds, double.Epsilon);
-        return new PerformanceMetrics(total, samples.Length, samples.Length / seconds, totalBytes / seconds, totalBytes / 1024d / 1024d / seconds, TimeSpan.FromTicks((long)samples.Average(value => value.Ticks)), Percentile(samples, 0.5), Percentile(samples, 0.95), Percentile(samples, 0.99));
+        return new PerformanceMetrics(total, samples.Length, total.TotalSeconds <= 0 ? 0 : samples.Length / seconds, total.TotalSeconds <= 0 ? 0 : totalBytes / seconds, total.TotalSeconds <= 0 ? 0 : totalBytes / 1024d / 1024d / seconds, samples.Length == 0 ? TimeSpan.Zero : TimeSpan.FromTicks((long)samples.Average(value => value.Ticks)), Percentile(samples, 0.5), Percentile(samples, 0.95), Percentile(samples, 0.99));
     }
 
     private static double Divide(double numerator, double denominator) => denominator == 0 ? 0 : numerator / denominator;

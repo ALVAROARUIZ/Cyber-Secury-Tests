@@ -6,10 +6,10 @@ namespace Wallabee.Benchmark.DependencyInjection;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddWallabeeBenchmark(this IServiceCollection services)
+    public static IServiceCollection AddWallabeeBenchmark(this IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration)
     {
         services.AddScoped<BenchmarkRunner>();
-        services.AddSingleton<InMemoryBenchmarkStore>();
+        services.Configure<Wallabee.Core.Configuration.BenchmarkOptions>(configuration.GetSection("Benchmark"));
         return services;
     }
 }

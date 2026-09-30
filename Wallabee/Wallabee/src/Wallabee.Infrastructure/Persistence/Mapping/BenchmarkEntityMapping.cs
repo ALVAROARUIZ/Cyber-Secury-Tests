@@ -1,0 +1,78 @@
+using Wallabee.Contracts.Benchmark;
+using Wallabee.Infrastructure.Persistence.Entities;
+namespace Wallabee.Infrastructure.Persistence.Mapping;
+public static class BenchmarkEntityMapping
+{
+    public static BenchmarkResultEntity ToEntity(BenchmarkDto r) => new()
+    {
+            BenchmarkId = r.BenchmarkId,
+            ExternalExperimentId = r.ExperimentId,
+            ExternalRoundId = r.RoundId,
+            SamplesScanned = r.SamplesScanned,
+            SamplesDetected = r.SamplesDetected,
+            SamplesMissed = r.SamplesMissed,
+            LabeledSamples = r.LabeledSamples,
+            TruePositives = r.TruePositives,
+            TrueNegatives = r.TrueNegatives,
+            FalsePositives = r.FalsePositives,
+            FalseNegatives = r.FalseNegatives,
+            DetectionRate = (decimal?)r.DetectionRate,
+            EvasionRate = (decimal?)r.EvasionRate,
+            PrecisionScore = (decimal?)r.Precision,
+            RecallScore = (decimal?)r.Recall,
+            F1Score = (decimal?)r.F1Score,
+            FalsePositiveRate = (decimal?)r.FalsePositiveRate,
+            FalseNegativeRate = (decimal?)r.FalseNegativeRate,
+            DurationMs = (decimal)r.TotalScanTimeMs,
+            AverageScanMs = (decimal)r.AverageScanMs,
+            P50ScanMs = (decimal)r.P50ScanMs,
+            P95ScanMs = (decimal)r.P95ScanMs,
+            P99ScanMs = (decimal)r.P99ScanMs,
+            FilesPerSecond = (decimal)r.FilesPerSecond,
+            BytesPerSecond = (decimal)r.BytesPerSecond,
+            MbPerSecond = (decimal)r.MbPerSecond,
+            CpuAveragePercent = (decimal?)r.CpuAverage,
+            CpuPeakPercent = (decimal?)r.CpuPeak,
+            MemoryAverageMb = (decimal?)r.RamAverageMb,
+            MemoryPeakMb = (decimal?)r.RamPeakMb,
+            StartedAt = r.StartedAt.UtcDateTime,
+            CompletedAt = r.CompletedAt.UtcDateTime,
+            BenchmarkType = "DirectoryScan"
+    };
+    public static BenchmarkDto ToDto(this BenchmarkResultEntity e) => new()
+    {
+            BenchmarkId = e.BenchmarkId,
+            ExperimentId = e.ExternalExperimentId,
+            RoundId = e.ExternalRoundId,
+            SamplesScanned = e.SamplesScanned,
+            SamplesDetected = e.SamplesDetected ?? 0,
+            SamplesMissed = e.SamplesMissed ?? 0,
+            LabeledSamples = e.LabeledSamples,
+            TruePositives = e.TruePositives ?? 0,
+            TrueNegatives = e.TrueNegatives ?? 0,
+            FalsePositives = e.FalsePositives ?? 0,
+            FalseNegatives = e.FalseNegatives ?? 0,
+            DetectionRate = (double?)(e.DetectionRate),
+            EvasionRate = (double?)(e.EvasionRate),
+            Precision = (double?)(e.PrecisionScore),
+            Recall = (double?)(e.RecallScore),
+            F1Score = (double?)(e.F1Score),
+            FalsePositiveRate = (double?)(e.FalsePositiveRate),
+            FalseNegativeRate = (double?)(e.FalseNegativeRate),
+            TotalScanTimeMs = (double)(e.DurationMs ?? 0),
+            AverageScanMs = (double)(e.AverageScanMs ?? 0),
+            P50ScanMs = (double)(e.P50ScanMs ?? 0),
+            P95ScanMs = (double)(e.P95ScanMs ?? 0),
+            P99ScanMs = (double)(e.P99ScanMs ?? 0),
+            FilesPerSecond = (double)(e.FilesPerSecond ?? 0),
+            BytesPerSecond = (double)(e.BytesPerSecond),
+            MbPerSecond = (double)(e.MbPerSecond ?? 0),
+            CpuAverage = (double?)(e.CpuAveragePercent),
+            CpuPeak = (double?)(e.CpuPeakPercent),
+            RamAverageMb = (double?)(e.MemoryAverageMb),
+            RamPeakMb = (double?)(e.MemoryPeakMb),
+            StartedAt = ScanEntityMapping.Utc(e.StartedAt),
+            CompletedAt = ScanEntityMapping.Utc(e.CompletedAt ?? e.StartedAt),
+            WallabeeVersion = e.WallabeeVersion.Version, HoneyBadgerVersion = e.HoneyBadgerVersion?.Version
+    };
+}

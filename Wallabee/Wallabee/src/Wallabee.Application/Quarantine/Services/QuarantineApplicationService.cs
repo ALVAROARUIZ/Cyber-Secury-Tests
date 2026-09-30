@@ -5,6 +5,9 @@ namespace Wallabee.Application.Quarantine.Services;
 
 public sealed class QuarantineApplicationService(IQuarantineService quarantineService)
 {
+    public Task<QuarantineEntry> QuarantineAsync(string path, CancellationToken cancellationToken = default) =>
+        quarantineService.QuarantineAsync(path, cancellationToken);
+
     public Task<IReadOnlyCollection<QuarantineEntry>> ListAsync(CancellationToken cancellationToken = default) =>
         quarantineService.ListAsync(cancellationToken);
 
