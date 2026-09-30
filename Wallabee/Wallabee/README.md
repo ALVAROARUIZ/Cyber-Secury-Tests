@@ -42,13 +42,11 @@ La API expone `GET /api/health`, los endpoints de escaneo bajo `/api/scan`, benc
 
 La API sirve el dashboard WALLABEE desde `/`: actividad de escaneos y benchmarks, gráficas de latencia/riesgo/CPU, resultados, filtros y exportación CSV. Consulta [uso y alcance del dashboard](docs/DASHBOARD.md).
 
-## Ejecutable y actualizaciones para Windows
+## Ejecutable para usuarios de Windows
 
-Descarga `Wallabee-win-x64.zip` de [GitHub Releases](https://github.com/ALVAROARUIZ/Cyber-Secury-Tests/releases/latest).
-Extrae el paquete y ejecuta `Wallabee.exe`. Incluye .NET y busca actualizaciones
-cada cinco minutos. Cada push a `main` genera una release tras superar las pruebas.
-Consulta [la guia de instalacion en una VM](docs/VM_WINDOWS.md), incluido el token
-de lectura necesario para descargar actualizaciones del repositorio privado.
+Descarga **Wallabee-win-x64.zip** desde [GitHub Releases](https://github.com/ALVAROARUIZ/Cyber-Secury-Tests/releases/latest). En las nuevas releases, al descomprimir encontrarás únicamente **Wallabee.exe**, con su icono. Al abrirlo inicia la API y abre automáticamente el panel web, sin consola ni instalación de .NET. Usa su icono de la bandeja de Windows para salir.
+
+Los componentes internos se guardan en `%LOCALAPPDATA%\Wallabee`. SQL Server sigue siendo necesario para persistir resultados. Consulta [instalación, conexión y actualizaciones](docs/VM_WINDOWS.md). El código fuente y el paquete interno de actualización son para desarrollo y mantenimiento; la descarga de usuario es `Wallabee-win-x64.zip`.
 
 ## Reglas del laboratorio
 

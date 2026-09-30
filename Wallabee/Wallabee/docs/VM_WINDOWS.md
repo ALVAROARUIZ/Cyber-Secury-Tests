@@ -1,87 +1,70 @@
-# Wallabee en Windows x64
+# WALLABEE para Windows x64
 
-## Primera instalacion
+## Descargar, descomprimir y abrir
 
-1. Descarga `Wallabee-win-x64.zip` de la ultima release `wallabee-*` en
-   https://github.com/ALVAROARUIZ/Cyber-Secury-Tests/releases/latest
-   (inicia sesion en GitHub porque el repositorio es privado).
-2. Extrae **todo** el ZIP, por ejemplo en `C:\Wallabee`. Conserva `versions`,
-   `current.txt` y `wallabee.settings.json` junto a `Wallabee.exe`.
-3. Configura el acceso a GitHub como se explica debajo y ejecuta el
-   **Wallabee.exe de la carpeta principal**. No hace falta instalar .NET,
-   Visual Studio ni Git, ni ejecutar como administrador.
-4. Comprueba http://localhost:5212/api/health. El campo `build` identifica
-   el commit instalado. Coloca los archivos de prueba dentro de `C:\Wallabee\lab`.
-   Wallabee sigue siendo una API; el ejecutable no agrega una interfaz grafica.
+1. En [GitHub Releases](https://github.com/ALVAROARUIZ/Cyber-Secury-Tests/releases/latest), descarga **Wallabee-win-x64.zip** de una release nueva que indique el formato de ejecutable único.
+2. Descomprime el ZIP. Encontrarás únicamente **Wallabee.exe**, con el icono de WALLABEE.
+3. Haz doble clic. El ejecutable prepara sus componentes y abre el panel web en el navegador predeterminado, normalmente en http://127.0.0.1:5212/.
 
-## Acceso a las actualizaciones de un repositorio privado
+No hace falta instalar .NET, Visual Studio ni Git. La aplicación no pide permisos de administrador. En un repositorio privado debes iniciar sesión en GitHub para descargar el ZIP. **Source code.zip** es el código para desarrolladores y **Wallabee-update-win-x64.zip** es el paquete interno de actualización.
 
-Crea en GitHub un token personal de acceso granular (fine-grained), limitado a
-`ALVAROARUIZ/Cyber-Secury-Tests`, con **Contents: Read-only**. En PowerShell dentro
-de la VM ejecuta este bloque; el token se solicita oculto y no se guarda en el
-historial ni en archivos del proyecto:
+El panel se sirve desde la API local; no se abre como un archivo HTML suelto. La carpeta descomprimida permanece con un único EXE incluso después de utilizarlo.
 
-```powershell
-$secureToken = Read-Host 'Token de GitHub (Contents: Read-only)' -AsSecureString
-$credential = New-Object System.Net.NetworkCredential('', $secureToken)
-$env:WALLABEE_GITHUB_TOKEN = $credential.Password
-& 'C:\Wallabee\Wallabee.exe'
-```
+## Cerrar y volver a abrir
 
-Esto configura el token solo para esa sesion. Para conservarlo entre sesiones,
-antes de ejecutar Wallabee puedes guardarlo como variable del usuario de Windows:
+WALLABEE muestra su icono en la bandeja de Windows, junto al reloj. Desde allí puedes:
 
-```powershell
-[Environment]::SetEnvironmentVariable('WALLABEE_GITHUB_TOKEN', $credential.Password, 'User')
-```
+- Abrir WALLABEE en el navegador.
+- Abrir la carpeta del laboratorio para colocar muestras.
+- Abrir los registros de diagnóstico.
+- Salir de WALLABEE y detener su API.
 
-La variable persistente es texto accesible para tu usuario, no una caja fuerte.
-Usa un token de solo lectura y una fecha de expiracion. Abre una terminal nueva
-o vuelve a iniciar sesion si Windows no refleja la variable al abrir el EXE.
-Sin token valido, o sin Internet, la version instalada sigue funcionando;
-el error de actualizacion queda en `logs/updates.log`.
+Cerrar la pestaña no cierra el motor. Abrir nuevamente el ejecutable reutiliza la instancia que ya está funcionando. El ejecutable no instala servicios ni tareas de inicio automático.
 
-## Funcionamiento
+## Datos y conexión
 
-- Cada **push a main** ejecuta las pruebas y crea una release identificada por
-  el SHA del commit. Guardar un archivo o hacer un commit sin push no publica
-  una actualizacion. Si las pruebas o la publicacion fallan, sigue la release anterior.
-- Wallabee consulta GitHub al iniciar y cada 300 segundos mientras esta abierto.
-  No instala servicios ni tareas programadas; debes abrirlo de nuevo al reiniciar la VM.
-- Descarga el paquete, verifica SHA-256 y comprueba su identificador de version.
-  Reinicia la API y valida `/api/health`. Si la nueva API no inicia, vuelve a la
-  version anterior y no vuelve a intentar esa misma version automaticamente.
-- El reinicio **interrumpe escaneos en curso**. Benchmarks y registros de
-  cuarentena que solo existen en memoria se pierden al reiniciar. Los archivos
-  del laboratorio y de cuarentena permanecen en disco.
-- `lab`, `logs` y `wallabee.settings.json` quedan fuera de las versiones y se
-  conservan. Las versiones anteriores se mantienen en `versions` para recuperacion.
-- El EXE de entrada es un bootstrap estable. La API y el supervisor de
-  actualizaciones se ejecutan desde la version activa y se actualizan juntos.
-- Cierra con **Ctrl+C**. El puerto escucha solo en la VM (`127.0.0.1`).
+Los componentes y datos locales se guardan en **`%LOCALAPPDATA%\Wallabee`**, fuera de la carpeta descargada:
 
-Puedes cambiar `port`, `checkIntervalSeconds` (minimo 10), `autoUpdate` y
-`allowRestore` en `wallabee.settings.json` y reiniciar Wallabee. Para una prueba
-que no deba interrumpirse, usa `"autoUpdate": false` temporalmente.
+- `lab`: muestras del laboratorio y cuarentena.
+- `versions`: API, supervisor, HTML y componentes de cada versión.
+- `logs`: diagnósticos.
+- `wallabee.settings.json`: configuración persistente.
+- `current.txt`: versión activa; `bundle-version.txt`: descarga instalada.
 
-## Recuperacion manual
+SQL Server sigue siendo necesario para guardar y consultar resultados. La configuración incluida espera `.\SQLEXPRESS`, base `DiveViewLab`, autenticación Windows. Un responsable del laboratorio debe provisionar esa base con las migrations indicadas en [DATABASE.md](DATABASE.md), o configurar una conexión existente. El paquete no instala SQL Server ni migra automáticamente una base de producción.
 
-Cierra Wallabee. Cambia el contenido de `current.txt` por el nombre de una
-carpeta existente bajo `versions` y pon `autoUpdate` en `false`. Vuelve a abrir
-`Wallabee.exe`. Para reintentar una version rechazada, elimina
-`failed-version.txt` con Wallabee cerrado y reactiva `autoUpdate`.
+Si SQL no responde, el panel puede abrirse y muestra la desconexión; los análisis no se presentan como guardados. El ejecutable incluye .NET y sus componentes, no un servidor SQL.
 
-## Compilar localmente
+Un responsable puede establecer `ConnectionStrings__DiveViewDatabase` en el entorno o añadir `connectionString` a `wallabee.settings.json`. Esa cadena permanece en el equipo y no debe incorporarse con credenciales a una release. La opción de settings tiene precedencia sobre la variable heredada.
 
-Desde el proyecto, con .NET SDK 10 instalado:
+## Actualizaciones
+
+El supervisor consulta GitHub al iniciar y cada 300 segundos. Sin acceso a Internet o al repositorio privado, la versión instalada continúa funcionando. Para actualizaciones privadas se admite `WALLABEE_GITHUB_TOKEN` con Contents: Read-only; el launcher no pasa ese token al motor de análisis.
+
+La actualización comprueba el SHA-256, el identificador y el formato del paquete. Activa la nueva API tras verificar su salud; si falla, vuelve a la anterior. La activación reinicia el motor y puede interrumpir análisis en curso. Los resultados ya persistidos en SQL permanecen guardados. Para sesiones que no deban interrumpirse, configura `autoUpdate` en `false`.
+
+La misma descarga no sobrescribe una actualización posterior al volver a abrirse. Descargar y ejecutar un bundle diferente instala esa versión de forma explícita, conservando configuración y muestras.
+
+## Compilar y validar (desarrolladores)
 
 ```powershell
 dotnet test HoneyBadgerVsWallabee.sln -c Release
-powershell -ExecutionPolicy Bypass -File scripts/Publish-Wallabee.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Publish-Wallabee.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Test-Package.ps1 -InstallDirectory artifacts/<build>/Wallabee
 ```
 
-El resultado queda bajo `artifacts/<identificador>/`. Los binarios se publican
-como archivos de GitHub Releases; no se guardan en el historial Git.
+El publicador genera:
 
-Referencias: [publicacion autocontenida de .NET](https://learn.microsoft.com/en-us/dotnet/core/deploying/single-file/overview),
-[descargas de assets privados de GitHub](https://docs.github.com/en/rest/releases/assets).
+- `Wallabee-win-x64.zip`: contiene solo `Wallabee.exe`, para usuarios.
+- `Wallabee-update-win-x64.zip`: payload interno del supervisor y la API.
+- Archivos SHA-256 para ambos ZIP.
+
+La primera publicación compila API y supervisor autocontenidos. La segunda incorpora ese payload como recurso del EXE de entrada. El icono original se conserva en `src/Wallabee.Launcher/Assets/wallabee.ico`; la UI incluye el mismo icono como favicon.
+
+La prueba del paquete extrae el ZIP en una carpeta nueva, emplea una base `WallabeePackageTests_<guid>`, comprueba la identidad efectiva de esa base, ejecuta un análisis y verifica dónde se guardó. La limpieza nombra explícitamente esa base temporal; no usa `dotnet ef database drop`. La prueba se ejecuta con Windows PowerShell para usar su cliente SQL integrado.
+
+`WALLABEE_DATA_DIRECTORY` permite aislar los archivos de una ejecución de pruebas. `--headless --no-browser` omite la bandeja y el navegador para automatización. No son necesarios para el usuario final.
+
+GitHub Actions ejecuta las pruebas con SQL Server LocalDB y publica los assets cuando se suben los cambios a main. Los binarios no forman parte del historial de código. Los permisos de GitHub no permiten mostrar una carpeta diferente según si el visitante es desarrollador; la distribución de usuarios se separa mediante Releases.
+
+Referencia: [publicación de .NET como archivo único](https://learn.microsoft.com/en-us/dotnet/core/deploying/single-file/overview).

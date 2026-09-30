@@ -5,6 +5,11 @@ namespace Wallabee.API.Controllers;
 [ApiController, Route("api/health")]
 public sealed class HealthController(HealthCheckService health) : ControllerBase
 {
+    // The launcher can open the UI even when the database is offline.
+    // /api/health retains the full persistence check for diagnostics and updates.
+    [HttpGet("/api/runtime")]
+    public IActionResult Runtime() => Ok(new { Api = "Ready", Build = WallabeeVersion.Build });
+
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct = default)
     {

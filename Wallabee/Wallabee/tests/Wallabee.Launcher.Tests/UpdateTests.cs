@@ -111,7 +111,7 @@ public sealed class UpdateTests : IDisposable
                 using var writer = new StreamWriter(archive.CreateEntry(name).Open());
                 writer.Write(value);
             }
-            Add("version.json", JsonSerializer.Serialize(new { build = manifestBuild }));
+            Add("version.json", JsonSerializer.Serialize(new { build = manifestBuild, packageFormat = 2 }));
             Add("Wallabee.exe", "launcher fixture");
             Add("Wallabee.API.exe", "API fixture");
             if (traversal) Add("../../../escape.txt", "must not escape");

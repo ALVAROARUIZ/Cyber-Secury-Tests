@@ -15,7 +15,22 @@ internal static partial class Program
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(10) };
     private static Process? api;
 
-    private static async Task<int> Main(string[] args)
+    internal static Action<string>? Ready;
+    internal static string? LastError;
+    internal static void RequestShutdown() => Shutdown.Cancel();
+
+    [STAThread]
+    private static int Main(string[] args)
+    {
+        if (args.Contains("--supervisor") || args.Contains("--headless"))
+            return RunAsync(args).GetAwaiter().GetResult();
+        ApplicationConfiguration.Initialize();
+        using var tray = new TrayApplication(args);
+        System.Windows.Forms.Application.Run(tray);
+        return tray.ExitCode;
+    }
+
+    internal static async Task<int> RunAsync(string[] args)
     {
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; Shutdown.Cancel(); };
         try
@@ -23,31 +38,62 @@ internal static partial class Program
             if (args.Length == 2 && args[0] == "--supervisor")
                 return await SuperviseAsync(Path.GetFullPath(args[1]));
 
-            var root = AppContext.BaseDirectory;
-            // The stable entry point delegates to the currently installed updater version.
-            using var installationLock = new FileStream(Path.Combine(root, ".wallabee.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            var root = BundleInstaller.DataRoot;
+            Directory.CreateDirectory(root);
+            Directory.CreateDirectory(Path.Combine(root, "logs"));
+            FileStream installationLock;
+            try { installationLock = new FileStream(Path.Combine(root, ".wallabee.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
+            catch (IOException)
+            {
+                var existingSettings = ReadSettings(root);
+                using var probe = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+                var running = await probe.GetFromJsonAsync<JsonElement>($"http://127.0.0.1:{existingSettings.Port}/api/runtime");
+                if (running.GetProperty("build").GetString() != ReadVersion(root))
+                    throw new InvalidOperationException("Otra instancia de WALLABEE está iniciando. Vuelve a abrirlo en unos segundos.");
+                if (!args.Contains("--no-browser")) OpenBrowser($"http://127.0.0.1:{existingSettings.Port}/");
+                return 0;
+            }
+            using var ownedLock = installationLock;
+            BundleInstaller.InstallEmbedded(root);
+            var settings = ReadSettings(root);
+            var opened = false;
             using var lifetime = new ProcessLifetime();
             while (!Shutdown.IsCancellationRequested)
             {
                 var version = ReadVersion(root);
-                var start = new ProcessStartInfo(Path.Combine(VersionDirectory(root, version), "Wallabee.exe")) { UseShellExecute = false };
+                var start = new ProcessStartInfo(Path.Combine(VersionDirectory(root, version), "Wallabee.exe")) { UseShellExecute = false, CreateNoWindow = true };
                 start.ArgumentList.Add("--supervisor");
                 start.ArgumentList.Add(root);
                 using var supervisor = Process.Start(start) ?? throw new InvalidOperationException("Cannot start Wallabee supervisor.");
                 lifetime.Add(supervisor);
-                await supervisor.WaitForExitAsync();
+                if (!opened)
+                {
+                    if (!await IsHealthyAsync(supervisor, settings.Port, version, runtimeOnly: true))
+                        throw new InvalidOperationException($"No se pudo iniciar el panel de WALLABEE. Consulta {Path.Combine(root, "logs", "api.log")}.");
+                    var address = $"http://127.0.0.1:{settings.Port}/";
+                    Ready?.Invoke(address);
+                    if (!args.Contains("--no-browser")) OpenBrowser(address);
+                    opened = true;
+                }
+                await supervisor.WaitForExitAsync(Shutdown.Token);
                 if (supervisor.ExitCode != 42) return supervisor.ExitCode;
             }
             return 0;
         }
         catch (OperationCanceledException) { return 0; }
-        catch (Exception ex) { Console.Error.WriteLine($"Wallabee: {ex.Message}"); return 1; }
+        catch (Exception ex)
+        {
+            LastError = ex.Message;
+            Console.Error.WriteLine($"Wallabee: {ex.Message}");
+            try { Directory.CreateDirectory(Path.Combine(BundleInstaller.DataRoot, "logs")); File.AppendAllText(Path.Combine(BundleInstaller.DataRoot, "logs", "launcher.log"), $"{DateTimeOffset.UtcNow:u} {ex.Message}{Environment.NewLine}"); } catch { }
+            return 1;
+        }
         finally { StopApi(); }
     }
 
     private static async Task<int> SuperviseAsync(string root)
     {
-        var settings = JsonSerializer.Deserialize<Settings>(await File.ReadAllTextAsync(Path.Combine(root, "wallabee.settings.json")), JsonOptions) ?? new();
+        var settings = ReadSettings(root);
         if (settings.Port is < 1024 or > 65535 || settings.CheckIntervalSeconds < 10)
             throw new InvalidOperationException("Invalid port or update interval in wallabee.settings.json.");
         if (!RepositoryPattern().IsMatch(settings.Repository)) throw new InvalidOperationException("Invalid GitHub repository.");
@@ -55,8 +101,8 @@ internal static partial class Program
         Directory.CreateDirectory(Path.Combine(root, "lab"));
         Directory.CreateDirectory(Path.Combine(root, "logs"));
         api = StartApi(root, current, settings);
-        if (!await IsHealthyAsync(api, settings.Port, current)) throw new InvalidOperationException("The API did not start. Check logs/api.log and whether the port is occupied.");
-        Log(root, $"Running {current} at http://localhost:{settings.Port}. Updates every {settings.CheckIntervalSeconds} seconds. Ctrl+C to stop.");
+        if (!await IsHealthyAsync(api, settings.Port, current, runtimeOnly: true)) throw new InvalidOperationException("The API did not start. Check logs/api.log and whether the port is occupied.");
+        Log(root, $"Running {current} at http://localhost:{settings.Port}. Updates every {settings.CheckIntervalSeconds} seconds. Usa el icono de la bandeja para salir.");
         while (!Shutdown.IsCancellationRequested)
         {
             if (api.HasExited) throw new InvalidOperationException($"API exited with code {api.ExitCode}. See logs/api.log.");
@@ -135,6 +181,8 @@ internal static partial class Program
         start.Environment["Quarantine__Directory"] = Path.Combine(root, "lab", "quarantine");
         start.Environment["Quarantine__AllowRestore"] = settings.AllowRestore.ToString();
         start.Environment["WallabeeRuntime__UseHttpsRedirection"] = "false";
+        if (!string.IsNullOrWhiteSpace(settings.ConnectionString))
+            start.Environment["ConnectionStrings__DiveViewDatabase"] = settings.ConnectionString;
         // Do not pass the private repository credential to the scanning API.
         start.Environment.Remove("WALLABEE_GITHUB_TOKEN");
         var process = new Process { StartInfo = start };
@@ -158,7 +206,7 @@ internal static partial class Program
         finally { api.Dispose(); api = null; }
     }
 
-    private static async Task<bool> IsHealthyAsync(Process process, int port, string version)
+    private static async Task<bool> IsHealthyAsync(Process process, int port, string version, bool runtimeOnly = false)
     {
         using var probe = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
         for (var attempt = 0; attempt < 30; attempt++)
@@ -166,7 +214,7 @@ internal static partial class Program
             if (process.HasExited || Shutdown.IsCancellationRequested) return false;
             try
             {
-                var health = await probe.GetFromJsonAsync<JsonElement>($"http://127.0.0.1:{port}/api/health", Shutdown.Token);
+                var health = await probe.GetFromJsonAsync<JsonElement>($"http://127.0.0.1:{port}/api/{(runtimeOnly ? "runtime" : "health")}", Shutdown.Token);
                 if (health.GetProperty("build").GetString() == version && !process.HasExited) return true;
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException) { }
@@ -215,7 +263,7 @@ internal static partial class Program
             var unpacked = Path.Combine(staging, "unpacked");
             ZipFile.ExtractToDirectory(zipPath, unpacked);
             var manifest = JsonSerializer.Deserialize<Manifest>(await File.ReadAllTextAsync(Path.Combine(unpacked, "version.json"), token), JsonOptions);
-            if (manifest?.Build != version || !File.Exists(Path.Combine(unpacked, "Wallabee.exe")) || !File.Exists(Path.Combine(unpacked, "Wallabee.API.exe")))
+            if (manifest?.Build != version || manifest.PackageFormat != 2 || !File.Exists(Path.Combine(unpacked, "Wallabee.exe")) || !File.Exists(Path.Combine(unpacked, "Wallabee.API.exe")))
                 throw new InvalidDataException("Package contents do not match the release.");
             var target = VersionDirectory(root, version);
             Directory.CreateDirectory(Path.Combine(root, "versions"));
@@ -234,6 +282,14 @@ internal static partial class Program
         if (!string.IsNullOrWhiteSpace(credential)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credential);
         return await (client ?? Http).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
     }
+
+    internal static void OpenBrowser(string address)
+    {
+        try { Process.Start(new ProcessStartInfo(address) { UseShellExecute = true }); }
+        catch (Exception ex) { Log(BundleInstaller.DataRoot, $"No se pudo abrir el navegador ({ex.GetType().Name}). Abre {address}"); }
+    }
+    private static Settings ReadSettings(string root) =>
+        JsonSerializer.Deserialize<Settings>(File.ReadAllText(Path.Combine(root, "wallabee.settings.json")), JsonOptions) ?? new();
 
     private static string ReadVersion(string root)
     {
@@ -260,7 +316,7 @@ internal static partial class Program
     [GeneratedRegex("^[a-zA-Z0-9-]{1,80}$")] private static partial Regex VersionPattern();
     [GeneratedRegex("^[a-fA-F0-9]{64}$")] private static partial Regex HashPattern();
     [GeneratedRegex("^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$")] private static partial Regex RepositoryPattern();
-    private sealed record Manifest(string Build);
+    private sealed record Manifest(string Build, int PackageFormat);
     internal sealed record Settings
     {
         public string Repository { get; init; } = "ALVAROARUIZ/Cyber-Secury-Tests";
@@ -268,5 +324,6 @@ internal static partial class Program
         public bool AutoUpdate { get; init; } = true;
         public int CheckIntervalSeconds { get; init; } = 300;
         public bool AllowRestore { get; init; } = false;
+        public string? ConnectionString { get; init; }
     }
 }

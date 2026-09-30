@@ -25,6 +25,13 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Start isolated SQL Server test instance
+        run: |
+          $localDb = Get-ChildItem 'C:/Program Files/Microsoft SQL Server' -Filter SqlLocalDB.exe -Recurse | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $localDb) { throw 'SQL Server LocalDB is required for integration tests.' }
+          & $localDb create WallabeeCI -s
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          'WALLABEE_TEST_SQLSERVER=Server=(localdb)\WallabeeCI;Database=master;Integrated Security=True;TrustServerCertificate=True;' | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Test solution
         run: |
           dotnet test HoneyBadgerVsWallabee.sln -c Release --nologo
@@ -32,7 +39,9 @@ jobs:
       - name: Publish self-contained packages
         run: ./scripts/Publish-Wallabee.ps1 -BuildId $env:GITHUB_SHA -Repository $env:GITHUB_REPOSITORY -OutputDirectory ./artifacts/release
       - name: Smoke test packaged executable
-        run: ./scripts/Test-Package.ps1 -InstallDirectory ./artifacts/release/Wallabee
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Test-Package.ps1 -InstallDirectory ./artifacts/release/Wallabee
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -43,7 +52,14 @@ jobs:
             Write-Host "Release $tag already exists."
             exit 0
           }
-          $notes = 'Windows x64 portable build. Extract Wallabee-win-x64.zip and run Wallabee.exe. Automatic updates every five minutes; private repository access requires WALLABEE_GITHUB_TOKEN. See README.md inside the package.'
+          $notes = @'
+          ## Descargar WALLABEE
+          Descarga **Wallabee-win-x64.zip**, descomprímelo y abre **Wallabee.exe**. El ZIP contiene únicamente ese ejecutable, con el icono de WALLABEE. El panel web se abre automáticamente en el navegador.
+
+          Incluye .NET. Los componentes internos se guardan en `%LOCALAPPDATA%\Wallabee`. Usa el icono de la bandeja para abrir el laboratorio o salir. SQL Server sigue siendo necesario para persistir resultados; si no está disponible, el panel muestra el estado de conexión.
+
+          `Wallabee-update-win-x64.zip` es el paquete interno del actualizador; no es la descarga de usuario. Las actualizaciones de este repositorio privado requieren `WALLABEE_GITHUB_TOKEN`.
+          '@
           $notes | Set-Content ./artifacts/release/notes.md -Encoding utf8
           gh release create $tag ./artifacts/release/*.zip ./artifacts/release/*.sha256 --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Wallabee $($env:GITHUB_SHA.Substring(0, 8))" --notes-file ./artifacts/release/notes.md --latest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

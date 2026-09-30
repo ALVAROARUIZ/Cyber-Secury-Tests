@@ -1,10 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <AssemblyName>Wallabee</AssemblyName>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets/wallabee.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Wallabee.Launcher.Tests" />
+    <EmbeddedResource Include="Assets/wallabee.ico" LogicalName="Wallabee.Icon" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(BundlePayload)' != ''">
+    <EmbeddedResource Include="$(BundlePayload)" LogicalName="Wallabee.Payload.zip" />
   </ItemGroup>
 </Project>
