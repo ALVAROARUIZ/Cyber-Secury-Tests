@@ -1,6 +1,6 @@
 # DIVE VIEW Web — guía de diseño y migración
 
-Estado: especificación propuesta, basada en la UI implementada de WALLABEE. No constituye una migración ejecutada de DIVE VIEW. Su código de escritorio no está presente en este workspace.
+Guía de diseño basada en WALLABEE. El proyecto DIVE VIEW se localizó en `Benchmarks/dive-view` y ya tiene una primera versión web. Consulta su [guía de diseño](../../../Benchmarks/dive-view/docs/WEB_DESIGN.md) y [README](../../../Benchmarks/dive-view/README.md) para el alcance implementado; esta especificación también contiene propuestas de evolución.
 
 ## Dirección visual
 
